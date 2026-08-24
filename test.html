@@ -1,0 +1,215 @@
+```html
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>言葉探検 音声実験</title>
+
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 30px 20px;
+      background: #fff8e8;
+      color: #333;
+    }
+
+    h1 {
+      font-size: 30px;
+    }
+
+    button {
+      font-size: 22px;
+      padding: 18px 30px;
+      border: none;
+      border-radius: 18px;
+      background: #398de3;
+      color: white;
+      margin: 20px 0;
+    }
+
+    #status {
+      font-size: 21px;
+      font-weight: bold;
+      margin: 20px;
+      min-height: 32px;
+    }
+
+    .box {
+      background: white;
+      border-radius: 18px;
+      padding: 18px;
+      margin: 15px auto;
+      max-width: 500px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .label {
+      font-size: 18px;
+      color: #666;
+    }
+
+    .number {
+      font-size: 30px;
+      font-weight: bold;
+      margin-top: 8px;
+    }
+
+    #guide {
+      font-size: 20px;
+      margin-top: 25px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>🔬 言葉探検・音の実験室</h1>
+
+  <p id="guide">
+    「あーーー」または「すーーー」と<br>
+    声を出してみよう。
+  </p>
+
+  <button id="mic">🎤 マイクをスタート</button>
+
+  <div id="status">
+    ボタンを押してね
+  </div>
+
+  <div class="box">
+    <div class="label">音量</div>
+    <div class="number" id="volume">0</div>
+  </div>
+
+  <div class="box">
+    <div class="label">低い音の成分</div>
+    <div class="number" id="low">0</div>
+  </div>
+
+  <div class="box">
+    <div class="label">高い音の成分</div>
+    <div class="number" id="high">0</div>
+  </div>
+
+  <div class="box">
+    <div class="label">高い音 ÷ 低い音</div>
+    <div class="number" id="ratio">0</div>
+  </div>
+
+
+<script>
+
+let stream = null;
+let audioContext = null;
+let analyser = null;
+
+const mic = document.getElementById("mic");
+const status = document.getElementById("status");
+
+const volumeText = document.getElementById("volume");
+const lowText = document.getElementById("low");
+const highText = document.getElementById("high");
+const ratioText = document.getElementById("ratio");
+
+
+mic.onclick = async function() {
+
+  status.textContent =
+    "🎤 マイクを確認しています…";
+
+  try {
+
+    stream =
+      await navigator.mediaDevices.getUserMedia({
+        audio: true
+      });
+
+    audioContext =
+      new (
+        window.AudioContext ||
+        window.webkitAudioContext
+      )();
+
+    const source =
+      audioContext.createMediaStreamSource(stream);
+
+    analyser =
+      audioContext.createAnalyser();
+
+    analyser.fftSize = 2048;
+
+    source.connect(analyser);
+
+    status.textContent =
+      "🎤 声を出してみよう！";
+
+    analyseSound();
+
+  } catch (error) {
+
+    status.textContent =
+      "マイクを使えませんでした：" +
+      error.name;
+
+    console.log(error);
+  }
+
+};
+
+
+function analyseSound() {
+
+  if (!analyser) return;
+
+  const data =
+    new Uint8Array(analyser.frequencyBinCount);
+
+  analyser.getByteFrequencyData(data);
+
+  let low = 0;
+  let high = 0;
+  let total = 0;
+
+  for (let i = 0; i < data.length; i++) {
+
+    const value = data[i];
+
+    total += value;
+
+    // 低い音
+    if (i < 20) {
+      low += value;
+    }
+
+    // 高い音
+    if (i > 100) {
+      high += value;
+    }
+  }
+
+  const ratio =
+    low > 0 ? high / low : 0;
+
+  volumeText.textContent =
+    Math.round(total / data.length);
+
+  lowText.textContent =
+    Math.round(low);
+
+  highText.textContent =
+    Math.round(high);
+
+  ratioText.textContent =
+    ratio.toFixed(2);
+
+  requestAnimationFrame(analyseSound);
+}
+
+</script>
+
+</body>
+</html>
+```

@@ -1,21 +1,35 @@
+```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>言葉探検 マイクテスト</title>
+  <title>言葉探検「すー！」</title>
 
   <style>
     body {
       font-family: sans-serif;
       text-align: center;
-      padding: 40px 20px;
+      padding: 30px 20px;
       background: #eef9ff;
       color: #333;
     }
 
     h1 {
-      font-size: 32px;
+      font-size: 34px;
+      margin-bottom: 10px;
+    }
+
+    #mission {
+      font-size: 24px;
+      font-weight: bold;
+      margin: 25px 0;
+    }
+
+    #target {
+      font-size: 48px;
+      font-weight: bold;
+      margin: 20px;
     }
 
     button {
@@ -25,13 +39,18 @@
       border-radius: 20px;
       background: #398de3;
       color: white;
-      margin: 30px 0;
+      margin: 20px 0;
+    }
+
+    button:active {
+      transform: scale(0.95);
     }
 
     #status {
       font-size: 22px;
       font-weight: bold;
       margin: 20px;
+      min-height: 32px;
     }
 
     #levelBox {
@@ -40,7 +59,7 @@
       height: 30px;
       background: #ddd;
       border-radius: 20px;
-      margin: 30px auto;
+      margin: 25px auto;
       overflow: hidden;
     }
 
@@ -48,11 +67,19 @@
       width: 0%;
       height: 100%;
       background: #65c58a;
+      transition: width 0.1s;
     }
 
     #message {
-      font-size: 20px;
+      font-size: 24px;
+      font-weight: bold;
       margin-top: 30px;
+      min-height: 40px;
+    }
+
+    #count {
+      font-size: 20px;
+      margin-top: 20px;
     }
   </style>
 </head>
@@ -61,9 +88,17 @@
 
   <h1>🎤 言葉探検</h1>
 
-  <p>マイクテスト</p>
+  <div id="mission">
+    ミッション！
+  </div>
 
-  <button id="mic">🎤 マイクをテスト</button>
+  <div id="target">
+    「すー！」
+  </div>
+
+  <button id="mic">
+    🎤 スタート
+  </button>
 
   <div id="status">
     ボタンを押してね
@@ -75,6 +110,10 @@
 
   <div id="message"></div>
 
+  <div id="count">
+    チャレンジ：0回
+  </div>
+
 <script>
 
 let stream = null;
@@ -82,14 +121,19 @@ let audioContext = null;
 let analyser = null;
 let animationId = null;
 
+let challengeCount = 0;
+let success = false;
+
 const status = document.getElementById("status");
 const level = document.getElementById("level");
 const message = document.getElementById("message");
 const mic = document.getElementById("mic");
+const count = document.getElementById("count");
+
 
 mic.onclick = async function() {
 
-  status.textContent = "① マイクを確認しています…";
+  status.textContent = "マイクを確認しています…";
   message.textContent = "";
 
   if (
@@ -98,13 +142,10 @@ mic.onclick = async function() {
   ) {
 
     status.textContent =
-      "② このページではマイクが使えません";
+      "このページではマイクが使えません";
 
     return;
   }
-
-  status.textContent =
-    "③ マイクの許可を確認しています…";
 
   try {
 
@@ -114,10 +155,10 @@ mic.onclick = async function() {
       });
 
     status.textContent =
-      "④ 🎤 マイクが使えました！";
+      "🎤 「すー！」と言ってみよう！";
 
     message.textContent =
-      "声を出してみてください";
+      "声を出してみてね";
 
     audioContext =
       new (
@@ -135,12 +176,14 @@ mic.onclick = async function() {
 
     source.connect(analyser);
 
+    success = false;
+
     checkSound();
 
   } catch (error) {
 
     status.textContent =
-      "⑤ マイクを使えませんでした";
+      "マイクを使えませんでした";
 
     message.textContent =
       "エラー：" + error.name;
@@ -178,6 +221,30 @@ function checkSound() {
   level.style.width =
     percent + "%";
 
+
+  // 一定以上の声が出たら成功
+  if (percent > 25 && !success) {
+
+    success = true;
+
+    challengeCount++;
+
+    count.textContent =
+      "チャレンジ：" +
+      challengeCount +
+      "回";
+
+    status.textContent =
+      "🌟 じょうず！";
+
+    message.textContent =
+      "「すー！」の声が聞こえたよ！";
+
+    mic.textContent =
+      "🎤 もう一回！";
+  }
+
+
   animationId =
     requestAnimationFrame(checkSound);
 }
@@ -186,3 +253,4 @@ function checkSound() {
 
 </body>
 </html>
+```

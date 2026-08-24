@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>言葉探検 マイクテスト</title>
+
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 40px 20px;
+      background: #eef9ff;
+      color: #333;
+    }
+
+    h1 {
+      font-size: 32px;
+    }
+
+    button {
+      font-size: 24px;
+      padding: 20px 35px;
+      border: none;
+      border-radius: 20px;
+      background: #398de3;
+      color: white;
+      margin: 30px 0;
+    }
+
+    #status {
+      font-size: 22px;
+      font-weight: bold;
+      margin: 20px;
+    }
+
+    #levelBox {
+      width: 90%;
+      max-width: 400px;
+      height: 30px;
+      background: #ddd;
+      border-radius: 20px;
+      margin: 30px auto;
+      overflow: hidden;
+    }
+
+    #level {
+      width: 0%;
+      height: 100%;
+      background: #65c58a;
+    }
+
+    #message {
+      font-size: 20px;
+      margin-top: 30px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>🎤 言葉探検</h1>
+
+  <p>マイクテスト</p>
+
+  <button id="mic">🎤 マイクをテスト</button>
+
+  <div id="status">
+    ボタンを押してね
+  </div>
+
+  <div id="levelBox">
+    <div id="level"></div>
+  </div>
+
+  <div id="message"></div>
+
+<script>
+
+let stream = null;
+let audioContext = null;
+let analyser = null;
+let animationId = null;
+
+const status = document.getElementById("status");
+const level = document.getElementById("level");
+const message = document.getElementById("message");
+const mic = document.getElementById("mic");
+
+mic.onclick = async function() {
+
+  status.textContent = "① マイクを確認しています…";
+  message.textContent = "";
+
+  if (
+    !navigator.mediaDevices ||
+    !navigator.mediaDevices.getUserMedia
+  ) {
+
+    status.textContent =
+      "② このページではマイクが使えません";
+
+    return;
+  }
+
+  status.textContent =
+    "③ マイクの許可を確認しています…";
+
+  try {
+
+    stream =
+      await navigator.mediaDevices.getUserMedia({
+        audio: true
+      });
+
+    status.textContent =
+      "④ 🎤 マイクが使えました！";
+
+    message.textContent =
+      "声を出してみてください";
+
+    audioContext =
+      new (
+        window.AudioContext ||
+        window.webkitAudioContext
+      )();
+
+    const source =
+      audioContext.createMediaStreamSource(stream);
+
+    analyser =
+      audioContext.createAnalyser();
+
+    analyser.fftSize = 1024;
+
+    source.connect(analyser);
+
+    checkSound();
+
+  } catch (error) {
+
+    status.textContent =
+      "⑤ マイクを使えませんでした";
+
+    message.textContent =
+      "エラー：" + error.name;
+
+    console.log(error);
+  }
+
+};
+
+
+function checkSound() {
+
+  if (!analyser) return;
+
+  const data =
+    new Uint8Array(analyser.fftSize);
+
+  analyser.getByteTimeDomainData(data);
+
+  let sum = 0;
+
+  for (const value of data) {
+
+    const n = (value - 128) / 128;
+
+    sum += n * n;
+  }
+
+  const rms =
+    Math.sqrt(sum / data.length);
+
+  const percent =
+    Math.min(100, rms * 500);
+
+  level.style.width =
+    percent + "%";
+
+  animationId =
+    requestAnimationFrame(checkSound);
+}
+
+</script>
+
+</body>
+</html>

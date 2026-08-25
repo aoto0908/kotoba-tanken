@@ -48,10 +48,13 @@
       margin-top: 0;
     }
 
-    .ratio {
-      font-size: 24px;
-      font-weight: bold;
-      margin: 12px;
+    .number {
+      font-size: 20px;
+      margin: 8px;
+    }
+
+    .number strong {
+      font-size: 25px;
     }
 
     canvas {
@@ -163,6 +166,8 @@ function detectSound() {
   analyser.getByteTimeDomainData(data);
 
   let sum = 0;
+  let max = 0;
+  let min = 255;
 
   for (const value of data) {
 
@@ -170,6 +175,9 @@ function detectSound() {
       (value - 128) / 128;
 
     sum += n * n;
+
+    if (value > max) max = value;
+    if (value < min) min = value;
   }
 
   const rms =
@@ -186,7 +194,7 @@ function detectSound() {
 
     lastSoundTime = Date.now();
 
-    saveMeasurement(data);
+    saveMeasurement(data, max, min);
   }
 
 
@@ -194,10 +202,52 @@ function detectSound() {
 }
 
 
-function saveMeasurement(waveData) {
+function saveMeasurement(waveData, max, min) {
 
   /*
-   * 発音した瞬間の周波数データを取得
+   * ① 振れ幅
+   */
+
+  const amplitude =
+    max - min;
+
+
+  /*
+   * ② 波の細かさ
+   *
+   * 波形が中央線（128）を
+   * 何回通過したかを数える。
+   */
+
+  let crossings = 0;
+
+  let previous =
+    waveData[0] - 128;
+
+
+  for (
+    let i = 1;
+    i < waveData.length;
+    i++
+  ) {
+
+    const current =
+      waveData[i] - 128;
+
+    if (
+      (previous < 0 && current >= 0) ||
+      (previous > 0 && current <= 0)
+    ) {
+
+      crossings++;
+    }
+
+    previous = current;
+  }
+
+
+  /*
+   * ③ 高音÷低音
    */
 
   const frequencyData =
@@ -212,6 +262,7 @@ function saveMeasurement(waveData) {
 
   let low = 0;
   let high = 0;
+
 
   for (
     let i = 0;
@@ -238,7 +289,7 @@ function saveMeasurement(waveData) {
 
 
   /*
-   * 記録を作る
+   * 記録を表示
    */
 
   const record =
@@ -255,9 +306,19 @@ function saveMeasurement(waveData) {
   record.innerHTML = `
     <h2>📸 発音 ${number}</h2>
 
-    <div class="ratio">
+    <div class="number">
+      振れ幅：
+      <strong>${amplitude}</strong>
+    </div>
+
+    <div class="number">
+      波の細かさ：
+      <strong>${crossings}</strong>
+    </div>
+
+    <div class="number">
       高音 ÷ 低音：
-      ${ratio.toFixed(2)}
+      <strong>${ratio.toFixed(2)}</strong>
     </div>
 
     <canvas width="700" height="220"></canvas>
@@ -340,7 +401,7 @@ function saveMeasurement(waveData) {
 
 
   status.textContent =
-    "📸 波形と数値を記録しました！";
+    "📸 3つの特徴を記録しました！";
 }
 
 

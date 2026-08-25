@@ -4,61 +4,75 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>言葉探検 音声実験</title>
+  <title>言葉探検 音の実験室</title>
 
   <style>
     body {
       font-family: sans-serif;
       text-align: center;
-      padding: 30px 20px;
+      padding: 25px 15px;
       background: #fff8e8;
       color: #333;
     }
 
     h1 {
-      font-size: 30px;
+      font-size: 28px;
     }
 
     button {
-      font-size: 22px;
-      padding: 18px 30px;
+      font-size: 21px;
+      padding: 16px 25px;
       border: none;
       border-radius: 18px;
       background: #398de3;
       color: white;
-      margin: 20px 0;
+      margin: 12px;
     }
 
     #status {
-      font-size: 21px;
+      font-size: 20px;
       font-weight: bold;
       margin: 20px;
-      min-height: 32px;
+      min-height: 30px;
     }
 
     .box {
       background: white;
       border-radius: 18px;
-      padding: 18px;
-      margin: 15px auto;
+      padding: 15px;
+      margin: 12px auto;
       max-width: 500px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
 
-    .label {
-      font-size: 18px;
-      color: #666;
+    .number {
+      font-size: 27px;
+      font-weight: bold;
+      margin-top: 5px;
     }
 
-    .number {
-      font-size: 30px;
-      font-weight: bold;
-      margin-top: 8px;
+    #result {
+      margin-top: 25px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px 4px;
+      font-size: 16px;
+    }
+
+    th {
+      background: #eee;
     }
 
     #guide {
-      font-size: 20px;
-      margin-top: 25px;
+      font-size: 19px;
       line-height: 1.6;
     }
   </style>
@@ -69,53 +83,38 @@
   <h1>🔬 言葉探検・音の実験室</h1>
 
   <p id="guide">
-    「あーーー」または「すーーー」と<br>
-    声を出してみよう。
+    マイクをスタートしたら、<br>
+    「あ！」「す！」「う！」と<br>
+    短く発音してみよう。
   </p>
 
-  <button id="mic">🎤 マイクをスタート</button>
+  <button id="mic">🎤 測定スタート</button>
+  <button id="clear">🗑️ 記録を消す</button>
 
   <div id="status">
     ボタンを押してね
   </div>
 
-  <div class="box">
-    <div class="label">音量</div>
-    <div class="number" id="volume">0</div>
-  </div>
-
-  <div class="box">
-    <div class="label">低い音の成分</div>
-    <div class="number" id="low">0</div>
-  </div>
-
-  <div class="box">
-    <div class="label">高い音の成分</div>
-    <div class="number" id="high">0</div>
-  </div>
-
-  <div class="box">
-    <div class="label">高い音 ÷ 低い音</div>
-    <div class="number" id="ratio">0</div>
-  </div>
-
+  <div id="result"></div>
 
 <script>
 
-let stream = null;
 let audioContext = null;
 let analyser = null;
+let stream = null;
+
+let lastSoundTime = 0;
+let measuring = false;
 
 const mic = document.getElementById("mic");
+const clearButton = document.getElementById("clear");
 const status = document.getElementById("status");
-
-const volumeText = document.getElementById("volume");
-const lowText = document.getElementById("low");
-const highText = document.getElementById("high");
-const ratioText = document.getElementById("ratio");
+const result = document.getElementById("result");
 
 
 mic.onclick = async function() {
+
+  if (measuring) return;
 
   status.textContent =
     "🎤 マイクを確認しています…";
@@ -143,10 +142,12 @@ mic.onclick = async function() {
 
     source.connect(analyser);
 
-    status.textContent =
-      "🎤 声を出してみよう！";
+    measuring = true;
 
-    analyseSound();
+    status.textContent =
+      "🎤 「あ！」「す！」「う！」と発音してね！";
+
+    detectSound();
 
   } catch (error) {
 
@@ -160,9 +161,50 @@ mic.onclick = async function() {
 };
 
 
-function analyseSound() {
+function detectSound() {
 
-  if (!analyser) return;
+  if (!analyser || !measuring) return;
+
+  const data =
+    new Uint8Array(analyser.fftSize);
+
+  analyser.getByteTimeDomainData(data);
+
+  let sum = 0;
+
+  for (const value of data) {
+
+    const n =
+      (value - 128) / 128;
+
+    sum += n * n;
+  }
+
+  const rms =
+    Math.sqrt(sum / data.length);
+
+  const volume =
+    rms * 500;
+
+
+  // 声を検知したら測定
+  if (
+    volume > 25 &&
+    Date.now() - lastSoundTime > 1000
+  ) {
+
+    lastSoundTime = Date.now();
+
+    measureFrequency();
+
+  }
+
+
+  requestAnimationFrame(detectSound);
+}
+
+
+function measureFrequency() {
 
   const data =
     new Uint8Array(analyser.frequencyBinCount);
@@ -179,12 +221,10 @@ function analyseSound() {
 
     total += value;
 
-    // 低い音
     if (i < 20) {
       low += value;
     }
 
-    // 高い音
     if (i > 100) {
       high += value;
     }
@@ -193,20 +233,81 @@ function analyseSound() {
   const ratio =
     low > 0 ? high / low : 0;
 
-  volumeText.textContent =
-    Math.round(total / data.length);
+  addResult(
+    Math.round(total / data.length),
+    Math.round(low),
+    Math.round(high),
+    ratio.toFixed(2)
+  );
 
-  lowText.textContent =
-    Math.round(low);
-
-  highText.textContent =
-    Math.round(high);
-
-  ratioText.textContent =
-    ratio.toFixed(2);
-
-  requestAnimationFrame(analyseSound);
 }
+
+
+function addResult(
+  volume,
+  low,
+  high,
+  ratio
+) {
+
+  const time =
+    new Date().toLocaleTimeString();
+
+  const row =
+    document.createElement("tr");
+
+  row.innerHTML = `
+    <td>${time}</td>
+    <td>${volume}</td>
+    <td>${low}</td>
+    <td>${high}</td>
+    <td>${ratio}</td>
+  `;
+
+  let table =
+    document.getElementById("dataTable");
+
+  if (!table) {
+
+    result.innerHTML = `
+      <div class="box">
+        <h2>📊 測定結果</h2>
+
+        <table>
+          <thead>
+            <tr>
+              <th>時刻</th>
+              <th>音量</th>
+              <th>低音</th>
+              <th>高音</th>
+              <th>高音÷低音</th>
+            </tr>
+          </thead>
+
+          <tbody id="dataTable"></tbody>
+        </table>
+      </div>
+    `;
+
+    table =
+      document.getElementById("dataTable");
+  }
+
+  table.appendChild(row);
+
+  status.textContent =
+    "📸 測定しました！ 次の発音をどうぞ。";
+}
+
+
+clearButton.onclick = function() {
+
+  result.innerHTML = "";
+
+  status.textContent =
+    "記録を消しました。";
+
+};
 
 </script>
 

@@ -48,6 +48,12 @@
       margin-top: 0;
     }
 
+    .ratio {
+      font-size: 24px;
+      font-weight: bold;
+      margin: 12px;
+    }
+
     canvas {
       width: 100%;
       height: 220px;
@@ -180,7 +186,7 @@ function detectSound() {
 
     lastSoundTime = Date.now();
 
-    saveWaveform(data);
+    saveMeasurement(data);
   }
 
 
@@ -188,22 +194,82 @@ function detectSound() {
 }
 
 
-function saveWaveform(data) {
+function saveMeasurement(waveData) {
+
+  /*
+   * 発音した瞬間の周波数データを取得
+   */
+
+  const frequencyData =
+    new Uint8Array(
+      analyser.frequencyBinCount
+    );
+
+  analyser.getByteFrequencyData(
+    frequencyData
+  );
+
+
+  let low = 0;
+  let high = 0;
+
+  for (
+    let i = 0;
+    i < frequencyData.length;
+    i++
+  ) {
+
+    const value =
+      frequencyData[i];
+
+    if (i < 20) {
+      low += value;
+    }
+
+    if (i > 100) {
+      high += value;
+    }
+
+  }
+
+
+  const ratio =
+    low > 0 ? high / low : 0;
+
+
+  /*
+   * 記録を作る
+   */
 
   const record =
     document.createElement("div");
 
-  record.className = "record";
+  record.className =
+    "record";
+
 
   const number =
     records.children.length + 1;
 
+
   record.innerHTML = `
     <h2>📸 発音 ${number}</h2>
+
+    <div class="ratio">
+      高音 ÷ 低音：
+      ${ratio.toFixed(2)}
+    </div>
+
     <canvas width="700" height="220"></canvas>
   `;
 
+
   records.prepend(record);
+
+
+  /*
+   * 波形を描く
+   */
 
   const canvas =
     record.querySelector("canvas");
@@ -211,49 +277,70 @@ function saveWaveform(data) {
   const ctx =
     canvas.getContext("2d");
 
-  ctx.clearRect(
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
 
   // 中央線
+
   ctx.beginPath();
-  ctx.moveTo(0, canvas.height / 2);
-  ctx.lineTo(canvas.width, canvas.height / 2);
-  ctx.strokeStyle = "#cccccc";
+
+  ctx.moveTo(
+    0,
+    canvas.height / 2
+  );
+
+  ctx.lineTo(
+    canvas.width,
+    canvas.height / 2
+  );
+
+  ctx.strokeStyle =
+    "#cccccc";
+
   ctx.stroke();
 
+
   // 波形
+
   ctx.beginPath();
+
 
   for (
     let i = 0;
-    i < data.length;
+    i < waveData.length;
     i++
   ) {
 
     const x =
-      i / data.length * canvas.width;
+      i / waveData.length *
+      canvas.width;
 
     const y =
-      data[i] / 255 * canvas.height;
+      waveData[i] / 255 *
+      canvas.height;
+
 
     if (i === 0) {
+
       ctx.moveTo(x, y);
+
     } else {
+
       ctx.lineTo(x, y);
+
     }
 
   }
 
-  ctx.strokeStyle = "#398de3";
+
+  ctx.strokeStyle =
+    "#398de3";
+
   ctx.lineWidth = 2;
+
   ctx.stroke();
 
+
   status.textContent =
-    "📸 波形を記録しました！ 次の音をどうぞ。";
+    "📸 波形と数値を記録しました！";
 }
 
 

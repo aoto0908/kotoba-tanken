@@ -1,4 +1,3 @@
-```html id="n8kz4c"
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -36,34 +35,25 @@
       min-height: 30px;
     }
 
-    canvas {
-      display: block;
-      width: 100%;
-      max-width: 700px;
-      height: 250px;
-      margin: 20px auto;
-      background: white;
-      border-radius: 15px;
-      border: 2px solid #ccc;
-    }
-
     .record {
       background: white;
-      border-radius: 15px;
+      border-radius: 18px;
       padding: 15px;
       margin: 20px auto;
       max-width: 700px;
-      text-align: left;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
 
     .record h2 {
       margin-top: 0;
-      text-align: center;
     }
 
-    .number {
-      font-size: 18px;
-      margin: 6px 0;
+    canvas {
+      width: 100%;
+      height: 220px;
+      background: #fafafa;
+      border: 1px solid #ccc;
+      border-radius: 12px;
     }
 
     #guide {
@@ -90,8 +80,6 @@
     ボタンを押してね
   </div>
 
-  <canvas id="graph" width="700" height="250"></canvas>
-
   <div id="records"></div>
 
 
@@ -107,8 +95,6 @@ let lastSoundTime = 0;
 const mic = document.getElementById("mic");
 const clearButton = document.getElementById("clear");
 const status = document.getElementById("status");
-const canvas = document.getElementById("graph");
-const ctx = canvas.getContext("2d");
 const records = document.getElementById("records");
 
 
@@ -147,7 +133,7 @@ mic.onclick = async function() {
     status.textContent =
       "🎤 「あ！」「す！」「う！」と発音してね！";
 
-    drawLive();
+    detectSound();
 
   } catch (error) {
 
@@ -161,7 +147,7 @@ mic.onclick = async function() {
 };
 
 
-function drawLive() {
+function detectSound() {
 
   if (!analyser || !measuring) return;
 
@@ -169,45 +155,6 @@ function drawLive() {
     new Uint8Array(analyser.fftSize);
 
   analyser.getByteTimeDomainData(data);
-
-  ctx.clearRect(
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
-
-  ctx.beginPath();
-
-  for (
-    let i = 0;
-    i < data.length;
-    i++
-  ) {
-
-    const x =
-      i / data.length * canvas.width;
-
-    const y =
-      data[i] / 255 * canvas.height;
-
-    if (i === 0) {
-      ctx.moveTo(x, y);
-    } else {
-      ctx.lineTo(x, y);
-    }
-
-  }
-
-  ctx.stroke();
-
-  detectSound(data);
-
-  requestAnimationFrame(drawLive);
-}
-
-
-function detectSound(data) {
 
   let sum = 0;
 
@@ -233,85 +180,36 @@ function detectSound(data) {
 
     lastSoundTime = Date.now();
 
-    saveMeasurement();
+    saveWaveform(data);
   }
 
+
+  requestAnimationFrame(detectSound);
 }
 
 
-function saveMeasurement() {
-
-  const frequencyData =
-    new Uint8Array(
-      analyser.frequencyBinCount
-    );
-
-  analyser.getByteFrequencyData(
-    frequencyData
-  );
-
-  let low = 0;
-  let high = 0;
-
-  for (
-    let i = 0;
-    i < frequencyData.length;
-    i++
-  ) {
-
-    const value =
-      frequencyData[i];
-
-    if (i < 20) {
-      low += value;
-    }
-
-    if (i > 100) {
-      high += value;
-    }
-
-  }
-
-  const ratio =
-    low > 0 ? high / low : 0;
-
-  const time =
-    new Date().toLocaleTimeString();
+function saveWaveform(data) {
 
   const record =
     document.createElement("div");
 
-  record.className =
-    "record";
+  record.className = "record";
+
+  const number =
+    records.children.length + 1;
 
   record.innerHTML = `
-    <h2>📸 発音データ</h2>
-
-    <div class="number">
-      時刻：${time}
-    </div>
-
-    <div class="number">
-      高音÷低音：
-      <strong>${ratio.toFixed(2)}</strong>
-    </div>
-
-    <p>
-      このグラフは、発音したときの
-      音の波の形です。
-    </p>
+    <h2>📸 発音 ${number}</h2>
+    <canvas width="700" height="220"></canvas>
   `;
 
   records.prepend(record);
 
-  status.textContent =
-    "📸 記録しました！ 次の音をどうぞ。";
-}
+  const canvas =
+    record.querySelector("canvas");
 
-
-clearButton.onclick = function() {
-
-  records.innerHTML = "";
+  const ctx =
+    canvas.getContext("2d");
 
   ctx.clearRect(
     0,
@@ -319,6 +217,49 @@ clearButton.onclick = function() {
     canvas.width,
     canvas.height
   );
+
+  // 中央線
+  ctx.beginPath();
+  ctx.moveTo(0, canvas.height / 2);
+  ctx.lineTo(canvas.width, canvas.height / 2);
+  ctx.strokeStyle = "#cccccc";
+  ctx.stroke();
+
+  // 波形
+  ctx.beginPath();
+
+  for (
+    let i = 0;
+    i < data.length;
+    i++
+  ) {
+
+    const x =
+      i / data.length * canvas.width;
+
+    const y =
+      data[i] / 255 * canvas.height;
+
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+
+  }
+
+  ctx.strokeStyle = "#398de3";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  status.textContent =
+    "📸 波形を記録しました！ 次の音をどうぞ。";
+}
+
+
+clearButton.onclick = function() {
+
+  records.innerHTML = "";
 
   status.textContent =
     "記録を消しました。";
@@ -329,4 +270,3 @@ clearButton.onclick = function() {
 
 </body>
 </html>
-```

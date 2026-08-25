@@ -1,4 +1,4 @@
-```html
+```html id="n8kz4c"
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -10,7 +10,7 @@
     body {
       font-family: sans-serif;
       text-align: center;
-      padding: 25px 15px;
+      padding: 20px 15px;
       background: #fff8e8;
       color: #333;
     }
@@ -21,12 +21,12 @@
 
     button {
       font-size: 21px;
-      padding: 16px 25px;
+      padding: 15px 24px;
       border: none;
       border-radius: 18px;
       background: #398de3;
       color: white;
-      margin: 12px;
+      margin: 10px;
     }
 
     #status {
@@ -36,39 +36,34 @@
       min-height: 30px;
     }
 
-    .box {
+    canvas {
+      display: block;
+      width: 100%;
+      max-width: 700px;
+      height: 250px;
+      margin: 20px auto;
       background: white;
-      border-radius: 18px;
+      border-radius: 15px;
+      border: 2px solid #ccc;
+    }
+
+    .record {
+      background: white;
+      border-radius: 15px;
       padding: 15px;
-      margin: 12px auto;
-      max-width: 500px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin: 20px auto;
+      max-width: 700px;
+      text-align: left;
+    }
+
+    .record h2 {
+      margin-top: 0;
+      text-align: center;
     }
 
     .number {
-      font-size: 27px;
-      font-weight: bold;
-      margin-top: 5px;
-    }
-
-    #result {
-      margin-top: 25px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-    }
-
-    th, td {
-      border: 1px solid #ccc;
-      padding: 8px 4px;
-      font-size: 16px;
-    }
-
-    th {
-      background: #eee;
+      font-size: 18px;
+      margin: 6px 0;
     }
 
     #guide {
@@ -95,7 +90,10 @@
     ボタンを押してね
   </div>
 
-  <div id="result"></div>
+  <canvas id="graph" width="700" height="250"></canvas>
+
+  <div id="records"></div>
+
 
 <script>
 
@@ -103,13 +101,15 @@ let audioContext = null;
 let analyser = null;
 let stream = null;
 
-let lastSoundTime = 0;
 let measuring = false;
+let lastSoundTime = 0;
 
 const mic = document.getElementById("mic");
 const clearButton = document.getElementById("clear");
 const status = document.getElementById("status");
-const result = document.getElementById("result");
+const canvas = document.getElementById("graph");
+const ctx = canvas.getContext("2d");
+const records = document.getElementById("records");
 
 
 mic.onclick = async function() {
@@ -147,7 +147,7 @@ mic.onclick = async function() {
     status.textContent =
       "🎤 「あ！」「す！」「う！」と発音してね！";
 
-    detectSound();
+    drawLive();
 
   } catch (error) {
 
@@ -161,7 +161,7 @@ mic.onclick = async function() {
 };
 
 
-function detectSound() {
+function drawLive() {
 
   if (!analyser || !measuring) return;
 
@@ -169,6 +169,45 @@ function detectSound() {
     new Uint8Array(analyser.fftSize);
 
   analyser.getByteTimeDomainData(data);
+
+  ctx.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+  ctx.beginPath();
+
+  for (
+    let i = 0;
+    i < data.length;
+    i++
+  ) {
+
+    const x =
+      i / data.length * canvas.width;
+
+    const y =
+      data[i] / 255 * canvas.height;
+
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+
+  }
+
+  ctx.stroke();
+
+  detectSound(data);
+
+  requestAnimationFrame(drawLive);
+}
+
+
+function detectSound(data) {
 
   let sum = 0;
 
@@ -187,39 +226,41 @@ function detectSound() {
     rms * 500;
 
 
-  // 声を検知したら測定
   if (
     volume > 25 &&
-    Date.now() - lastSoundTime > 1000
+    Date.now() - lastSoundTime > 1200
   ) {
 
     lastSoundTime = Date.now();
 
-    measureFrequency();
-
+    saveMeasurement();
   }
 
-
-  requestAnimationFrame(detectSound);
 }
 
 
-function measureFrequency() {
+function saveMeasurement() {
 
-  const data =
-    new Uint8Array(analyser.frequencyBinCount);
+  const frequencyData =
+    new Uint8Array(
+      analyser.frequencyBinCount
+    );
 
-  analyser.getByteFrequencyData(data);
+  analyser.getByteFrequencyData(
+    frequencyData
+  );
 
   let low = 0;
   let high = 0;
-  let total = 0;
 
-  for (let i = 0; i < data.length; i++) {
+  for (
+    let i = 0;
+    i < frequencyData.length;
+    i++
+  ) {
 
-    const value = data[i];
-
-    total += value;
+    const value =
+      frequencyData[i];
 
     if (i < 20) {
       low += value;
@@ -228,81 +269,56 @@ function measureFrequency() {
     if (i > 100) {
       high += value;
     }
+
   }
 
   const ratio =
     low > 0 ? high / low : 0;
 
-  addResult(
-    Math.round(total / data.length),
-    Math.round(low),
-    Math.round(high),
-    ratio.toFixed(2)
-  );
-
-}
-
-
-function addResult(
-  volume,
-  low,
-  high,
-  ratio
-) {
-
   const time =
     new Date().toLocaleTimeString();
 
-  const row =
-    document.createElement("tr");
+  const record =
+    document.createElement("div");
 
-  row.innerHTML = `
-    <td>${time}</td>
-    <td>${volume}</td>
-    <td>${low}</td>
-    <td>${high}</td>
-    <td>${ratio}</td>
+  record.className =
+    "record";
+
+  record.innerHTML = `
+    <h2>📸 発音データ</h2>
+
+    <div class="number">
+      時刻：${time}
+    </div>
+
+    <div class="number">
+      高音÷低音：
+      <strong>${ratio.toFixed(2)}</strong>
+    </div>
+
+    <p>
+      このグラフは、発音したときの
+      音の波の形です。
+    </p>
   `;
 
-  let table =
-    document.getElementById("dataTable");
-
-  if (!table) {
-
-    result.innerHTML = `
-      <div class="box">
-        <h2>📊 測定結果</h2>
-
-        <table>
-          <thead>
-            <tr>
-              <th>時刻</th>
-              <th>音量</th>
-              <th>低音</th>
-              <th>高音</th>
-              <th>高音÷低音</th>
-            </tr>
-          </thead>
-
-          <tbody id="dataTable"></tbody>
-        </table>
-      </div>
-    `;
-
-    table =
-      document.getElementById("dataTable");
-  }
-
-  table.appendChild(row);
+  records.prepend(record);
 
   status.textContent =
-    "📸 測定しました！ 次の発音をどうぞ。";
+    "📸 記録しました！ 次の音をどうぞ。";
 }
 
 
 clearButton.onclick = function() {
 
-  result.innerHTML = "";
+  records.innerHTML = "";
+
+  ctx.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
 
   status.textContent =
     "記録を消しました。";

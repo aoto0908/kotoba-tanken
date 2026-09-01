@@ -1,9 +1,10 @@
+```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>言葉探検 音の実験室</title>
+  <title>言葉探検・時間分析</title>
 
   <style>
     body {
@@ -19,13 +20,13 @@
     }
 
     button {
-      font-size: 21px;
-      padding: 15px 24px;
+      font-size: 20px;
+      padding: 14px 22px;
       border: none;
       border-radius: 18px;
       background: #398de3;
       color: white;
-      margin: 10px;
+      margin: 8px;
     }
 
     #status {
@@ -35,12 +36,16 @@
       min-height: 30px;
     }
 
+    #records {
+      max-width: 750px;
+      margin: auto;
+    }
+
     .record {
       background: white;
       border-radius: 18px;
       padding: 15px;
       margin: 20px auto;
-      max-width: 700px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
 
@@ -49,12 +54,12 @@
     }
 
     .number {
-      font-size: 20px;
-      margin: 8px;
+      font-size: 19px;
+      margin: 7px;
     }
 
     .number strong {
-      font-size: 25px;
+      font-size: 24px;
     }
 
     canvas {
@@ -63,10 +68,11 @@
       background: #fafafa;
       border: 1px solid #ccc;
       border-radius: 12px;
+      margin-top: 10px;
     }
 
     #guide {
-      font-size: 19px;
+      font-size: 18px;
       line-height: 1.6;
     }
   </style>
@@ -74,11 +80,11 @@
 
 <body>
 
-  <h1>🔬 言葉探検・音の実験室</h1>
+  <h1>🔬 言葉探検・時間分析</h1>
 
   <p id="guide">
     マイクをスタートしたら、<br>
-    「あ！」「す！」「う！」と<br>
+    「す！」または「つ！」と<br>
     短く発音してみよう。
   </p>
 
@@ -99,13 +105,23 @@ let analyser = null;
 let stream = null;
 
 let measuring = false;
-let lastSoundTime = 0;
+let recording = false;
+
+let samples = [];
+
+let recordStartTime = 0;
+
+const RECORD_TIME = 800;
 
 const mic = document.getElementById("mic");
 const clearButton = document.getElementById("clear");
 const status = document.getElementById("status");
 const records = document.getElementById("records");
 
+
+/* =========================
+   マイク開始
+========================= */
 
 mic.onclick = async function() {
 
@@ -140,7 +156,7 @@ mic.onclick = async function() {
     measuring = true;
 
     status.textContent =
-      "🎤 「あ！」「す！」「う！」と発音してね！";
+      "🎤 発音すると自動で測定します！";
 
     detectSound();
 
@@ -156,6 +172,10 @@ mic.onclick = async function() {
 };
 
 
+/* =========================
+   音を監視
+========================= */
+
 function detectSound() {
 
   if (!analyser || !measuring) return;
@@ -166,8 +186,6 @@ function detectSound() {
   analyser.getByteTimeDomainData(data);
 
   let sum = 0;
-  let max = 0;
-  let min = 255;
 
   for (const value of data) {
 
@@ -175,9 +193,6 @@ function detectSound() {
       (value - 128) / 128;
 
     sum += n * n;
-
-    if (value > max) max = value;
-    if (value < min) min = value;
   }
 
   const rms =
@@ -187,14 +202,27 @@ function detectSound() {
     rms * 500;
 
 
+  /*
+   * 音が一定以上になったら
+   * 0.8秒間の記録を開始
+   */
+
   if (
-    volume > 25 &&
-    Date.now() - lastSoundTime > 1200
+    volume > 20 &&
+    !recording
   ) {
 
-    lastSoundTime = Date.now();
+    startRecording();
+  }
 
-    saveMeasurement(data, max, min);
+
+  /*
+   * 記録中はデータを保存
+   */
+
+  if (recording) {
+
+    collectData(data);
   }
 
 
@@ -202,37 +230,79 @@ function detectSound() {
 }
 
 
-function saveMeasurement(waveData, max, min) {
+/* =========================
+   記録開始
+========================= */
+
+function startRecording() {
+
+  recording = true;
+
+  samples = [];
+
+  recordStartTime = Date.now();
+
+  status.textContent =
+    "📸 音を分析しています…";
+}
+
+
+/* =========================
+   データ収集
+========================= */
+
+function collectData(data) {
+
+  const now =
+    Date.now();
+
+  const elapsed =
+    now - recordStartTime;
+
 
   /*
-   * ① 振れ幅
+   * 波形をコピー
    */
+
+  const wave =
+    Array.from(data);
+
+
+  /*
+   * 振れ幅
+   */
+
+  let max = 0;
+  let min = 255;
+
+  for (const value of data) {
+
+    if (value > max) max = value;
+    if (value < min) min = value;
+
+  }
 
   const amplitude =
     max - min;
 
 
   /*
-   * ② 波の細かさ
-   *
-   * 波形が中央線（128）を
-   * 何回通過したかを数える。
+   * 波の細かさ
    */
 
   let crossings = 0;
 
   let previous =
-    waveData[0] - 128;
-
+    data[0] - 128;
 
   for (
     let i = 1;
-    i < waveData.length;
+    i < data.length;
     i++
   ) {
 
     const current =
-      waveData[i] - 128;
+      data[i] - 128;
 
     if (
       (previous < 0 && current >= 0) ||
@@ -247,7 +317,7 @@ function saveMeasurement(waveData, max, min) {
 
 
   /*
-   * ③ 高音÷低音
+   * 高音・低音
    */
 
   const frequencyData =
@@ -262,7 +332,6 @@ function saveMeasurement(waveData, max, min) {
 
   let low = 0;
   let high = 0;
-
 
   for (
     let i = 0;
@@ -280,16 +349,126 @@ function saveMeasurement(waveData, max, min) {
     if (i > 100) {
       high += value;
     }
-
   }
 
 
   const ratio =
-    low > 0 ? high / low : 0;
+    low > 0
+      ? high / low
+      : 0;
+
+
+  samples.push({
+
+    time: elapsed,
+
+    amplitude: amplitude,
+
+    crossings: crossings,
+
+    ratio: ratio,
+
+    wave: wave
+
+  });
 
 
   /*
-   * 記録を表示
+   * 0.8秒たったら分析終了
+   */
+
+  if (elapsed >= RECORD_TIME) {
+
+    finishRecording();
+  }
+
+}
+
+
+/* =========================
+   分析終了
+========================= */
+
+function finishRecording() {
+
+  recording = false;
+
+
+  if (samples.length === 0) {
+
+    status.textContent =
+      "音を検出できませんでした。";
+
+    return;
+  }
+
+
+  /*
+   * 平均値を計算
+   */
+
+  let amplitudeSum = 0;
+  let crossingsSum = 0;
+  let ratioSum = 0;
+
+
+  for (const s of samples) {
+
+    amplitudeSum += s.amplitude;
+
+    crossingsSum += s.crossings;
+
+    ratioSum += s.ratio;
+  }
+
+
+  const amplitudeAverage =
+    amplitudeSum / samples.length;
+
+  const crossingsAverage =
+    crossingsSum / samples.length;
+
+  const ratioAverage =
+    ratioSum / samples.length;
+
+
+  /*
+   * 細かさの最大・最小
+   */
+
+  let minCrossings = Infinity;
+  let maxCrossings = -Infinity;
+
+
+  for (const s of samples) {
+
+    if (s.crossings < minCrossings) {
+      minCrossings = s.crossings;
+    }
+
+    if (s.crossings > maxCrossings) {
+      maxCrossings = s.crossings;
+    }
+  }
+
+
+  /*
+   * 最初と最後の細かさ
+   */
+
+  const first =
+    samples[0].crossings;
+
+  const last =
+    samples[samples.length - 1].crossings;
+
+
+  const change =
+    last - first;
+
+
+  /*
+   * 記録表示
    */
 
   const record =
@@ -304,21 +483,50 @@ function saveMeasurement(waveData, max, min) {
 
 
   record.innerHTML = `
+
     <h2>📸 発音 ${number}</h2>
 
     <div class="number">
-      振れ幅：
-      <strong>${amplitude}</strong>
+      振れ幅（平均）：
+      <strong>
+        ${amplitudeAverage.toFixed(1)}
+      </strong>
     </div>
 
     <div class="number">
-      波の細かさ：
-      <strong>${crossings}</strong>
+      波の細かさ（平均）：
+      <strong>
+        ${crossingsAverage.toFixed(1)}
+      </strong>
     </div>
 
     <div class="number">
-      高音 ÷ 低音：
-      <strong>${ratio.toFixed(2)}</strong>
+      波の細かさ（最小～最大）：
+      <strong>
+        ${minCrossings} ～ ${maxCrossings}
+      </strong>
+    </div>
+
+    <div class="number">
+      最初 → 最後：
+      <strong>
+        ${first} → ${last}
+      </strong>
+    </div>
+
+    <div class="number">
+      細かさの変化：
+      <strong>
+        ${change > 0 ? "+" : ""}
+        ${change}
+      </strong>
+    </div>
+
+    <div class="number">
+      高音 ÷ 低音（平均）：
+      <strong>
+        ${ratioAverage.toFixed(2)}
+      </strong>
     </div>
 
     <canvas width="700" height="220"></canvas>
@@ -330,6 +538,9 @@ function saveMeasurement(waveData, max, min) {
 
   /*
    * 波形を描く
+   *
+   * 発音中のデータを
+   * 時間順につなげる
    */
 
   const canvas =
@@ -339,7 +550,9 @@ function saveMeasurement(waveData, max, min) {
     canvas.getContext("2d");
 
 
-  // 中央線
+  /*
+   * 中央線
+   */
 
   ctx.beginPath();
 
@@ -359,36 +572,55 @@ function saveMeasurement(waveData, max, min) {
   ctx.stroke();
 
 
-  // 波形
+  /*
+   * 波形
+   */
 
   ctx.beginPath();
 
 
-  for (
-    let i = 0;
-    i < waveData.length;
-    i++
-  ) {
+  let totalPoints = 0;
 
-    const x =
-      i / waveData.length *
-      canvas.width;
-
-    const y =
-      waveData[i] / 255 *
-      canvas.height;
+  for (const s of samples) {
+    totalPoints += s.wave.length;
+  }
 
 
-    if (i === 0) {
+  let pointIndex = 0;
 
-      ctx.moveTo(x, y);
 
-    } else {
+  for (const s of samples) {
 
-      ctx.lineTo(x, y);
+    for (
+      let i = 0;
+      i < s.wave.length;
+      i++
+    ) {
 
+      const x =
+        pointIndex /
+        totalPoints *
+        canvas.width;
+
+      const y =
+        s.wave[i] /
+        255 *
+        canvas.height;
+
+
+      if (pointIndex === 0) {
+
+        ctx.moveTo(x, y);
+
+      } else {
+
+        ctx.lineTo(x, y);
+
+      }
+
+
+      pointIndex++;
     }
-
   }
 
 
@@ -401,9 +633,13 @@ function saveMeasurement(waveData, max, min) {
 
 
   status.textContent =
-    "📸 3つの特徴を記録しました！";
+    "✅ 測定完了！もう一度発音できます。";
 }
 
+
+/* =========================
+   記録を消す
+========================= */
 
 clearButton.onclick = function() {
 
@@ -418,3 +654,4 @@ clearButton.onclick = function() {
 
 </body>
 </html>
+```

@@ -54,12 +54,18 @@
     }
 
     .number {
-      font-size: 19px;
+      font-size: 18px;
       margin: 7px;
     }
 
     .number strong {
-      font-size: 24px;
+      font-size: 23px;
+    }
+
+    .section {
+      margin-top: 15px;
+      padding: 10px;
+      border-top: 1px solid #ddd;
     }
 
     canvas {
@@ -204,7 +210,7 @@ function detectSound() {
 
   /*
    * 音が一定以上になったら
-   * 0.8秒間の記録を開始
+   * 記録開始
    */
 
   if (
@@ -217,7 +223,7 @@ function detectSound() {
 
 
   /*
-   * 記録中はデータを保存
+   * 記録中
    */
 
   if (recording) {
@@ -240,7 +246,7 @@ function startRecording() {
 
   samples = [];
 
-  recordStartTime = Date.now();
+  recordStartTime = performance.now();
 
   status.textContent =
     "📸 音を分析しています…";
@@ -254,18 +260,10 @@ function startRecording() {
 function collectData(data) {
 
   const now =
-    Date.now();
+    performance.now();
 
   const elapsed =
     now - recordStartTime;
-
-
-  /*
-   * 波形をコピー
-   */
-
-  const wave =
-    Array.from(data);
 
 
   /*
@@ -317,7 +315,7 @@ function collectData(data) {
 
 
   /*
-   * 高音・低音
+   * 高音÷低音
    */
 
   const frequencyData =
@@ -328,7 +326,6 @@ function collectData(data) {
   analyser.getByteFrequencyData(
     frequencyData
   );
-
 
   let low = 0;
   let high = 0;
@@ -351,7 +348,6 @@ function collectData(data) {
     }
   }
 
-
   const ratio =
     low > 0
       ? high / low
@@ -361,20 +357,15 @@ function collectData(data) {
   samples.push({
 
     time: elapsed,
-
     amplitude: amplitude,
-
     crossings: crossings,
-
-    ratio: ratio,
-
-    wave: wave
+    ratio: ratio
 
   });
 
 
   /*
-   * 0.8秒たったら分析終了
+   * 0.8秒で終了
    */
 
   if (elapsed >= RECORD_TIME) {
@@ -386,7 +377,60 @@ function collectData(data) {
 
 
 /* =========================
-   分析終了
+   指定時間帯の平均
+========================= */
+
+function averageByTime(start, end) {
+
+  const selected =
+    samples.filter(
+      s => s.time >= start && s.time < end
+    );
+
+
+  if (selected.length === 0) {
+
+    return {
+      amplitude: 0,
+      crossings: 0,
+      ratio: 0
+    };
+
+  }
+
+
+  let amplitude = 0;
+  let crossings = 0;
+  let ratio = 0;
+
+
+  for (const s of selected) {
+
+    amplitude += s.amplitude;
+    crossings += s.crossings;
+    ratio += s.ratio;
+
+  }
+
+
+  return {
+
+    amplitude:
+      amplitude / selected.length,
+
+    crossings:
+      crossings / selected.length,
+
+    ratio:
+      ratio / selected.length
+
+  };
+
+}
+
+
+/* =========================
+   測定終了
 ========================= */
 
 function finishRecording() {
@@ -404,67 +448,25 @@ function finishRecording() {
 
 
   /*
-   * 平均値を計算
+   * 全体平均
    */
 
-  let amplitudeSum = 0;
-  let crossingsSum = 0;
-  let ratioSum = 0;
-
-
-  for (const s of samples) {
-
-    amplitudeSum += s.amplitude;
-
-    crossingsSum += s.crossings;
-
-    ratioSum += s.ratio;
-  }
-
-
-  const amplitudeAverage =
-    amplitudeSum / samples.length;
-
-  const crossingsAverage =
-    crossingsSum / samples.length;
-
-  const ratioAverage =
-    ratioSum / samples.length;
+  const all =
+    averageByTime(0, RECORD_TIME);
 
 
   /*
-   * 細かさの最大・最小
-   */
-
-  let minCrossings = Infinity;
-  let maxCrossings = -Infinity;
-
-
-  for (const s of samples) {
-
-    if (s.crossings < minCrossings) {
-      minCrossings = s.crossings;
-    }
-
-    if (s.crossings > maxCrossings) {
-      maxCrossings = s.crossings;
-    }
-  }
-
-
-  /*
-   * 最初と最後の細かさ
+   * 前半・中間・後半
    */
 
   const first =
-    samples[0].crossings;
+    averageByTime(0, 200);
+
+  const middle =
+    averageByTime(200, 400);
 
   const last =
-    samples[samples.length - 1].crossings;
-
-
-  const change =
-    last - first;
+    averageByTime(400, 800);
 
 
   /*
@@ -486,48 +488,61 @@ function finishRecording() {
 
     <h2>📸 発音 ${number}</h2>
 
-    <div class="number">
-      振れ幅（平均）：
-      <strong>
-        ${amplitudeAverage.toFixed(1)}
-      </strong>
+    <div class="section">
+
+      <h3>⏱ 時間ごとの「細かさ」</h3>
+
+      <div class="number">
+        前半（0～0.2秒）：
+        <strong>
+          ${first.crossings.toFixed(1)}
+        </strong>
+      </div>
+
+      <div class="number">
+        中間（0.2～0.4秒）：
+        <strong>
+          ${middle.crossings.toFixed(1)}
+        </strong>
+      </div>
+
+      <div class="number">
+        後半（0.4～0.8秒）：
+        <strong>
+          ${last.crossings.toFixed(1)}
+        </strong>
+      </div>
+
     </div>
 
-    <div class="number">
-      波の細かさ（平均）：
-      <strong>
-        ${crossingsAverage.toFixed(1)}
-      </strong>
+
+    <div class="section">
+
+      <h3>📊 全体の平均</h3>
+
+      <div class="number">
+        振れ幅：
+        <strong>
+          ${all.amplitude.toFixed(1)}
+        </strong>
+      </div>
+
+      <div class="number">
+        細かさ：
+        <strong>
+          ${all.crossings.toFixed(1)}
+        </strong>
+      </div>
+
+      <div class="number">
+        高音 ÷ 低音：
+        <strong>
+          ${all.ratio.toFixed(2)}
+        </strong>
+      </div>
+
     </div>
 
-    <div class="number">
-      波の細かさ（最小～最大）：
-      <strong>
-        ${minCrossings} ～ ${maxCrossings}
-      </strong>
-    </div>
-
-    <div class="number">
-      最初 → 最後：
-      <strong>
-        ${first} → ${last}
-      </strong>
-    </div>
-
-    <div class="number">
-      細かさの変化：
-      <strong>
-        ${change > 0 ? "+" : ""}
-        ${change}
-      </strong>
-    </div>
-
-    <div class="number">
-      高音 ÷ 低音（平均）：
-      <strong>
-        ${ratioAverage.toFixed(2)}
-      </strong>
-    </div>
 
     <canvas width="700" height="220"></canvas>
   `;
@@ -538,9 +553,6 @@ function finishRecording() {
 
   /*
    * 波形を描く
-   *
-   * 発音中のデータを
-   * 時間順につなげる
    */
 
   const canvas =
@@ -579,55 +591,56 @@ function finishRecording() {
   ctx.beginPath();
 
 
-  let totalPoints = 0;
+  /*
+   * サンプル全体を横方向に配置
+   */
 
-  for (const s of samples) {
-    totalPoints += s.wave.length;
-  }
+  const total =
+    samples.length;
 
+  for (
+    let i = 0;
+    i < total;
+    i++
+  ) {
 
-  let pointIndex = 0;
+    const x =
+      i / (total - 1) *
+      canvas.width;
 
+    /*
+     * 細かさを簡易的に
+     * 波形として表示
+     *
+     * 実際の音声波形ではなく、
+     * 各時間の細かさを表示する。
+     */
 
-  for (const s of samples) {
+    const normalized =
+      samples[i].crossings / 600;
 
-    for (
-      let i = 0;
-      i < s.wave.length;
-      i++
-    ) {
-
-      const x =
-        pointIndex /
-        totalPoints *
-        canvas.width;
-
-      const y =
-        s.wave[i] /
-        255 *
-        canvas.height;
-
-
-      if (pointIndex === 0) {
-
-        ctx.moveTo(x, y);
-
-      } else {
-
-        ctx.lineTo(x, y);
-
-      }
+    const y =
+      canvas.height / 2 -
+      Math.min(100, normalized * 200);
 
 
-      pointIndex++;
+    if (i === 0) {
+
+      ctx.moveTo(x, y);
+
+    } else {
+
+      ctx.lineTo(x, y);
+
     }
+
   }
 
 
   ctx.strokeStyle =
     "#398de3";
 
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 3;
 
   ctx.stroke();
 
